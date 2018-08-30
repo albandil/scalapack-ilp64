@@ -2,3 +2,61 @@ Use (both) the following CMake flags to compile ScaLAPACK with 64-bit integers:
 
     CMAKE_C_FLAGS="-DInt=long"
     CMAKE_Fortran_FLAGS="-fdefault-integer-8"
+
+(or -i8 when using ifort). Also make sure that you use ILP64 BLAS, for example OpenBLAS
+compiled with INTERFACE64=1, as well as ILP64 MPI, for example OpenMPI compiled with
+FCFLAGS="-fdefault-integer-8" (or -i8).
+
+For inspiration, this is the script that I use for building ILP64 ScaLAPACK:
+
+------------------------------------------------------------------------------------------
+
+#!/bin/bash
+
+GCC="/opt/gcc-svn"
+GCCBIN="$GCC/bin"
+GCCLIB="$GCC/lib64"
+
+MPI="/opt/openmpi-3.1.1-ilp64-gcc-svn"
+MPIBIN="$MPI/bin"
+MPILIB="$MPI/lib64"
+
+BLAS="/opt/openblas-0.3.2-openmp-ilp64-gcc-svn"
+BLASLIB="$BLAS/lib"
+
+export PATH=$GCCBIN:$MPIBIN:$PATH
+export LD_LIBRARY_PATH=$GCCLIB:$MPILIB:$BLASLIB:$LD_LIBRARY_PATH
+
+mkdir -p build-gcc-svn-ilp64
+pushd    build-gcc-svn-ilp64
+
+sed -i 's/INTSZ = 4/INTSZ = 8/g'   ../TESTING/EIG/* ../TESTING/LIN/*
+sed -i 's/INTGSZ = 4/INTGSZ = 8/g' ../TESTING/EIG/* ../TESTING/LIN/*
+
+cmake \
+    -D CMAKE_C_COMPILER=$(which mpicc) \
+    -D CMAKE_CXX_COMPILER=$(which mpicxx) \
+    -D CMAKE_Fortran_COMPILER=$(which mpifort) \
+    -D CMAKE_C_FLAGS="-DInt=long" \
+    -D CMAKE_Fortran_FLAGS="-fdefault-integer-8" \
+    -D MPIEXEC_EXECUTABLE="$(which mpiexec)" \
+    -D BLAS_LIBRARIES="$BLASLIB/libopenblas.so" \
+    -D LAPACK_LIBRARIES="$BLASLIB/libopenblas.so" \
+    ..
+
+make -j 10
+
+export OMP_NUM_THREADS=1
+
+make test
+
+popd
+
+------------------------------------------------------------------------------------------
+
+You will notice that some tests (77-xssep, 81-xsgsep, 91-xssyevr) fail. But this is because
+the tests are written with the assumption that real numbers are always larger (in terms of
+bytes) than integers. But these tests use single precision (4 bytes) with long integers
+(8 bytes), so the assumption is violated and the tests are irrelevant.
+
+                                                                  Jakub Benda, 30 Aug 2018
