@@ -1,0 +1,4 @@
+Use (both) the following CMake flags to compile ScaLAPACK with 64-bit integers:
+
+    CMAKE_C_FLAGS="-DInt=long"
+    CMAKE_Fortran_FLAGS="-fdefault-integer-8"
